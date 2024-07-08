@@ -1,0 +1,55 @@
+module;
+
+//design data model
+
+entity user {
+  mutable name;
+  key id: byte_array;
+}
+
+entity follower {
+  index user;
+  index follower: user;
+  key user, follower;
+}
+
+entity post {
+  timestamp = op_context.last_block_time;
+  index user;
+  content: text;
+}
+
+
+//operations 
+
+//create a user
+operation create_user(name, pubkey) {
+    create user(name, pubkey);
+}
+
+//make a post
+operation make_post(user_id: byte_array, content: text) {
+    create post(
+        user @ { user_id },
+        content
+    );
+}
+
+//follow a user
+operation follow_user(user_id: byte_array, follow_id: byte_array) {
+    val user = user @ { user_id };
+    val follow = user @ { follow_id };
+    create follower(
+        user = follow,
+        follower = user
+    );
+}
+
+//unfollow a user
+operation unfollow_user(user_id: byte_array, unfollow_id: byte_array) {
+  val user = user @ { user_id };
+  val unfollow = user @ { unfollow_id };
+  delete follower @? { .user == unfollow, .follower == user };
+}
+
+

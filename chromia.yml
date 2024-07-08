@@ -1,0 +1,13 @@
+blockchains:
+  my-news-feed:
+    module: main
+compile:
+  rellVersion: 0.13.5
+database: 
+  password: postchain
+  username: postgres
+  database: my_news_feed
+  schema: schema_my_news_feed
+test:
+  modules:
+    - test
