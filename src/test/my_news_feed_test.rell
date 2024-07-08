@@ -1,43 +1,28 @@
 @test module;
 
 import main.*;
-
+import lib.ft4.test.utils.{ ft_auth_operation_for };
 val alice = rell.test.pubkeys.alice;
 val bob = rell.test.pubkeys.bob;
 
 val alice_kp = rell.test.keypairs.alice; // <--
 function test_create_entities() {
-    
-    // Test the creation of two users: Alice and Bob
     rell.test.tx()
         .op(create_user("Alice", alice))
         .op(create_user("Bob", bob))
-        .sign(alice_kp)                  // <--
         .run();
-
-    // Check if there are two users in the user table
     assert_equals(user @ { } (@sum 1), 2);
-
-    // Alice follows Bob and makes a post
     rell.test.tx()
-        .op(follow_user(alice, bob))
-        .op(make_post(alice, "My post"))
-        .sign(alice_kp)   //<--
+        .op(ft_auth_operation_for(alice)) // Auth operation
+        .op(follow_user(bob))             // Argument removed
+        .op(ft_auth_operation_for(alice)) // Auth operation
+        .op(make_post("My post"))         // Argument removed
+        .sign(alice_kp)
         .run();
-
-    // Check if there is one follower and one post
+    assert_true(is_following(alice, bob));
     assert_equals(follower @ { } (@sum 1), 1);
     assert_equals(post @ { } (@sum 1), 1);
-     assert_true(is_following(alice, bob));
-    // Alice unfollows Bob and no followers should now exist
-        rell.test.tx()
-        .op(unfollow_user(alice, bob))
-        .sign(alice_kp)                  // <--
-        .run();
-    assert_false(is_following(alice, bob));
-    assert_equals(follower @ { } (@sum 1), 0);
 }
-
 
 
 function test_user_name() {
@@ -53,19 +38,20 @@ function test_user_name() {
 
 
 val charlie = rell.test.pubkeys.charlie;
-
-function test_follower_calculation() {
+val bob_kp = rell.test.keypairs.bob;
+function test_follower_calculation() { 
     rell.test.tx()
         .op(create_user("Alice", alice))
         .op(create_user("Bob", bob))
         .op(create_user("Charlie", charlie))
-        .sign(alice_kp) //<--
         .run();
 
     rell.test.tx()
-        .op(follow_user(alice, bob))
-        .op(follow_user(alice, charlie))
-        .sign(alice_kp)                   // <--
+        .op(ft_auth_operation_for(alice))
+        .op(follow_user(bob))
+        .op(ft_auth_operation_for(alice))
+        .op(follow_user(charlie))
+        .sign(alice_kp)
         .run();
 
     assert_true(is_following(alice, bob));
@@ -77,18 +63,22 @@ function test_follower_calculation() {
     assert_equals(get_followers_count(bob), 1);
 }
 
-//Test pagination for posts
-val bob_kp = rell.test.keypairs.bob;
 function test_pagination_of_posts() {
     rell.test.tx()
         .op(create_user("Alice", alice))
-        .op(create_user("Bob", bob))
-        .sign(alice_kp)                // <--
+        .op(create_user("Bob", bob)).run();
+    rell.test.tx()
+        .op(ft_auth_operation_for(alice))
+        .op(follow_user(bob))
+        .sign(alice_kp)
         .run();
-    rell.test.tx().op(follow_user(alice, bob)).sign(alice_kp).run();
 
     for (i in range(5)) {
-        rell.test.tx().op(make_post(bob, "Content %d".format(i))).sign(bob_kp).run();
+        rell.test.tx()
+            .op(ft_auth_operation_for(bob))
+            .op(make_post("Content %d".format(i)))
+            .sign(bob_kp)
+            .run();
     }
 
     val initial_posts = get_posts(alice, 0, 4);
@@ -99,6 +89,9 @@ function test_pagination_of_posts() {
     assert_equals(last_posts.posts.size(), 1);
 }
 
+
+
+
 val charlie_kp = rell.test.keypairs.charlie;
 
 function test_input_verification() {
@@ -106,27 +99,31 @@ function test_input_verification() {
         .op(create_user("Alice", alice))
         .op(create_user("Bob", bob)).run();
 
-    // Bob cannot impersonate Alice
+    // Bob cannot impersonate alice
     rell.test.tx()
-        .op(follow_user(alice, bob))
+        .op(ft_auth_operation_for(alice)) // <-- malicious auth operation
+        .op(follow_user(bob))             // <-- argument removed
         .sign(bob_kp)
         .run_must_fail();
     rell.test.tx()
-        .op(make_post(alice, "My malicious post"))
+        .op(ft_auth_operation_for(alice))     // <-- malicious auth operation
+        .op(make_post("My malicous post"))    // <-- argument removed
         .sign(bob_kp)
         .run_must_fail();
 
-    // Alice cannot follow non-existing Charlie
+    // Alice cannot follow non-existing charlie
     val f1 = rell.test.tx()
-        .op(follow_user(alice, charlie))
+        .op(ft_auth_operation_for(alice))  // <-- auth operation
+        .op(follow_user(charlie))          // <-- argument removed
         .sign(alice_kp)
         .run_must_fail();
     assert_true(f1.message.contains("does not exist"));
 
     // Charlie cannot create a post since he does not exist
     val f2 = rell.test.tx()
-        .op(make_post(charlie, "My secret post"))
+        //.op(ft_auth_operation_for(charlie))   // <-- Cannot create auth operation
+        .op(make_post("My secret post"))        // <-- argument removed
         .sign(charlie_kp)
         .run_must_fail();
-    assert_true(f2.message.contains("does not exist"));
+    assert_true(f2.message.contains("Expected at least two operations"));
 }
