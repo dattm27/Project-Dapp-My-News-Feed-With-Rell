@@ -1,7 +1,8 @@
 @test module;
 
-import main.*;
+import news_feed.*;
 import lib.ft4.test.utils.{ ft_auth_operation_for };
+import ^.test_operations.{ create_user };
 val alice = rell.test.pubkeys.alice;
 val bob = rell.test.pubkeys.bob;
 

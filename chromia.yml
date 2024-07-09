@@ -1,6 +1,6 @@
 blockchains:
   my-news-feed:
-    module: main
+    module: development # set to "main" for production
     test:
       modules:
         - test

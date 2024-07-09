@@ -1,0 +1,8 @@
+
+
+
+struct post_dto {
+  timestamp;
+  user: struct<user>;
+  content: text;
+}
